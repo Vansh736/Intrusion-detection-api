@@ -1,25 +1,19 @@
 
 from fastapi import FastAPI
-from pydantic import BaseModel
 import joblib
 import numpy as np
-import os
+from pydantic import BaseModel
 
-# Create FastAPI app
-app = FastAPI(title="Intrusion Detection API")
+app = FastAPI(
+    title="Intrusion Detection API",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
 
-# Get current directory path (important for cloud)
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# Load model and scaler safely
-model_path = os.path.join(BASE_DIR, "final_rf_model.pkl")
-scaler_path = os.path.join(BASE_DIR, "final_scaler.pkl")
-
-model = joblib.load(model_path)
-scaler = joblib.load(scaler_path)
+model = joblib.load("final_rf_model.pkl")
+scaler = joblib.load("final_scaler.pkl")
 
 
-# Input Data Model
 class InputData(BaseModel):
     network_packet_size: float
     protocol_type: int
@@ -32,17 +26,14 @@ class InputData(BaseModel):
     unusual_time_access: int
 
 
-# Home Route
 @app.get("/")
 def home():
-    return {"message": "IDS API is running"}
+    return {"message": "Intrusion Detection API Running"}
 
 
-# Prediction Route
 @app.post("/predict")
 def predict(data: InputData):
 
-    # Convert input to numpy array
     input_data = np.array([[
         data.network_packet_size,
         data.protocol_type,
@@ -55,16 +46,12 @@ def predict(data: InputData):
         data.unusual_time_access
     ]])
 
-    # Scale data
-    scaled_data = scaler.transform(input_data)
+    scaled = scaler.transform(input_data)
+    prediction = model.predict(scaled)
 
-    # Make prediction
-    prediction = model.predict(scaled_data)
+    return {"prediction": int(prediction[0])}
 
-    # Result
-    result = "Intrusion Detected" if prediction[0] == 1 else "Normal Traffic"
 
-    return {
-        "prediction": int(prediction[0]),
-        "result": result
-    }
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=7860)
